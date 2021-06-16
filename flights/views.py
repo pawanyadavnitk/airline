@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.urls import reverse
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, Http404, HttpResponseBadRequest
 
 from .models import Flight, Passenger
 
@@ -11,7 +11,10 @@ def index(request):
     })
 
 def flight(request, flight_id):
-    flight = Flight.objects.get(pk=flight_id)
+    try:
+        flight = Flight.objects.get(pk=flight_id)
+    except Flight.DoesNotExist:
+        raise Http404("Flight not found")
     passengers = flight.passengers.all()
     non_passengers = Passenger.objects.exclude(flights=flight).all()
     return render(request, "flights/flight.html", {
@@ -21,16 +24,16 @@ def flight(request, flight_id):
     })
 
 def book(request, flight_id):
-
-    # For a post request, add a new flight
     if request.method == "POST":
-        # Accessing the flight
-        flight = Flight.objects.get(pk=flight_id)
-        # Finding the passenger id from the submitted form data
-        passenger_id = int(request.POST["passenger"])
-        # Finding the passenger based on the id
-        passenger = Passenger.objects.get(pk=passenger_id)
-        # Add passenger to the flight
+        try:
+            flight = Flight.objects.get(pk=flight_id)
+            passenger = Passenger.objects.get(pk=int(request.POST["passenger"]))
+        except KeyError:
+            return HttpResponseBadRequest("Bad Request: no flight chosen")
+        except Flight.DoesNotExist:
+            return HttpResponseBadRequest("Bad Request: flight does not exist")
+        except Passenger.DoesNotExist:
+            return HttpResponseBadRequest("Bad Request: passenger does not exist")
         passenger.flights.add(flight)
-        # Redirect user to flight page
-        return HttpResponseRedirect(reverse("flight", args=(flight.id,)))
+        # flight.passengers.add(passenger)
+        return HttpResponseRedirect(reverse("flights:flight", args=(flight.id,)))
